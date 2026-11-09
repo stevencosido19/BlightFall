@@ -2,24 +2,32 @@ using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-// Define your 3 character roles here
+// Explicitly defined roles
 public enum CharacterRole
 {
     Knight,
-    Character2,
-    Character3
+    Arbalist,
+    Rogue
 }
 
 [RequireComponent(typeof(UnityEngine.CharacterController))]
-public class CharacterController : NetworkBehaviour
+public class PlayerController : NetworkBehaviour
 {
     [Header("Character Role")]
     [Tooltip("Select which character this prefab represents")]
     [SerializeField] private CharacterRole characterRole;
     public CharacterRole Role => characterRole;
 
-    // Only the Knight is allowed to push rocks!
+    // Role-specific abilities
     public bool CanPushRocks => characterRole == CharacterRole.Knight;
+    public bool CanPickLocks => characterRole == CharacterRole.Rogue;
+    public bool CanUseCrossbow => characterRole == CharacterRole.Arbalist;
+
+    // Set to true when Arbalist is aiming/scoping to freeze movement
+    [HideInInspector] public bool isMovementLocked = false;
+
+    // Remembers the last direction you walked (Left, Right, Up, Down) without rotating the GameObject!
+    public Vector3 LastFacingDirection { get; private set; } = Vector3.forward;
 
     [Header("Movement Settings")]
     [SerializeField] private float moveSpeed = 6f;
@@ -72,20 +80,32 @@ public class CharacterController : NetworkBehaviour
         }
     }
 
+    public override void OnNetworkDespawn()
+    {
+        base.OnNetworkDespawn();
+    }
+
     private void Update()
     {
-        if (!IsOwner) return;
+        // 1. Disables movement if not the owner OR if movement is locked (while aiming with Scope)
+        if (!IsOwner || isMovementLocked) return;
 
-        // 1. READ COMBINED INPUT
+        // 2. READ COMBINED INPUT
         Vector2 input = ReadInput();
 
-        // 2. CONVERT 2D INPUT TO 3D MOVEMENT
+        // 3. CONVERT 2D INPUT TO 3D MOVEMENT
         moveDirection = new Vector3(input.x, 0f, input.y).normalized;
 
-        // 3. APPLY MOVEMENT
+        // 4. REMEMBER LAST MOVED DIRECTION (No transform rotation!)
+        if (moveDirection.sqrMagnitude > 0.01f)
+        {
+            LastFacingDirection = moveDirection;
+        }
+
+        // 5. APPLY MOVEMENT
         controller.Move(moveDirection * moveSpeed * Time.deltaTime);
 
-        // 4. APPLY GRAVITY
+        // 6. APPLY GRAVITY
         if (controller.isGrounded && velocity.y < 0)
         {
             velocity.y = -2f;

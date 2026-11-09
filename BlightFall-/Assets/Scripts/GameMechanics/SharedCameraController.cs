@@ -21,8 +21,8 @@ public class SharedCameraController : MonoBehaviour
     private Vector3 velocity;
     private Camera cam;
 
-    // We cache the players in an array so we don't have to search the whole game every frame
-    private CharacterController[] activePlayers = new CharacterController[0];
+    // Cached array of PlayerController instead of CharacterController
+    private PlayerController[] activePlayers = new PlayerController[0];
     private float searchTimer = 0f;
 
     private void Start()
@@ -36,32 +36,48 @@ public class SharedCameraController : MonoBehaviour
         searchTimer -= Time.deltaTime;
         if (searchTimer <= 0f)
         {
-            // This finds every character in the scene, regardless of whether they are a Knight, Arbalist, or Rogue!
-            activePlayers = Object.FindObjectsByType<CharacterController>(FindObjectsSortMode.None);
+            activePlayers = Object.FindObjectsByType<PlayerController>(FindObjectsSortMode.None);
             searchTimer = 0.5f;
         }
 
-        // If no players have spawned yet, do nothing
+        // If no player array exists yet, do nothing
         if (activePlayers == null || activePlayers.Length == 0) return;
 
-        // 2. Calculate the Average Position and the Bounding Box
+        // 2. Calculate the Average Position and Bounding Box (safely ignoring destroyed players)
         Vector3 averagePosition = Vector3.zero;
-        Bounds bounds = new Bounds(activePlayers[0].transform.position, Vector3.zero);
+        Bounds bounds = default;
+        bool hasFirstBound = false;
+        int validPlayerCount = 0;
 
         for (int i = 0; i < activePlayers.Length; i++)
         {
-            // Add up all player positions
-            averagePosition += activePlayers[i].transform.position;
+            // SKIP null/destroyed players so it never throws MissingReferenceException
+            if (activePlayers[i] == null) continue;
 
-            // Expand the invisible box to include this player
-            bounds.Encapsulate(activePlayers[i].transform.position);
+            Vector3 playerPos = activePlayers[i].transform.position;
+            averagePosition += playerPos;
+
+            // Initialize bounds on the first VALID player found
+            if (!hasFirstBound)
+            {
+                bounds = new Bounds(playerPos, Vector3.zero);
+                hasFirstBound = true;
+            }
+            else
+            {
+                bounds.Encapsulate(playerPos);
+            }
+
+            validPlayerCount++;
         }
 
-        // Divide by the number of players to get the exact center of the group
-        averagePosition /= activePlayers.Length;
+        // If all players in the list were destroyed/despawned, stop here
+        if (validPlayerCount == 0) return;
+
+        // Divide by the number of ALIVE players to get the center
+        averagePosition /= validPlayerCount;
 
         // 3. Move the Camera
-        // Target is the group's average center plus your chosen height/angle offset
         Vector3 targetPosition = averagePosition + offset;
         transform.position = Vector3.SmoothDamp(transform.position, targetPosition, ref velocity, smoothTime);
 

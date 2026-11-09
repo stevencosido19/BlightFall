@@ -104,6 +104,8 @@ GameObject:
   - component: {fileID: 562661297700019528}
   - component: {fileID: 4729222157192965544}
   - component: {fileID: 2815184098183376370}
+  - component: {fileID: 8520749785076216140}
+  - component: {fileID: -1774898399957192695}
   m_Layer: 0
   m_Name: Knight
   m_TagString: Untagged
@@ -164,7 +166,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 2879289984
+  GlobalObjectIdHash: 703938011
   InScenePlacedSourceGlobalObjectIdHash: 0
   m_InScenePlacedDisabledByDefault: 0
   DeferredDespawnTick: 0
@@ -238,9 +240,49 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CharacterController
   ShowTopMostFoldoutHeaderGroup: 1
-  canPushRocks: 0
+  characterRole: 0
+  isMovementLocked: 0
   moveSpeed: 6
   gravity: -9.81
   controllerHeight: 2.06
   controllerRadius: 0.5
   controllerCenter: {x: 0, y: 0.66, z: 0}
+--- !u!114 &8520749785076216140
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8854471354418628137}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5b857c48c59db7946969c827c0b03574, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerCombat
+  ShowTopMostFoldoutHeaderGroup: 1
+  knightSlashDamage: 35
+  knightKnockbackForce: 22
+  slashRadius: 2.2
+  slashDistance: 1.8
+  attackCooldown: 1
+--- !u!114 &-1774898399957192695
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8854471354418628137}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e26cd041b4bc64e4b92ee634f2680643, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
+  ShowTopMostFoldoutHeaderGroup: 1
+  knightHealth: 150
+  arbalistHealth: 100
+  rogueHealth: 80
+  CurrentHealth:
+    UpdateTraits:
+      MinSecondsBetweenUpdates: 0
+      MaxSecondsBetweenUpdates: 0
+    m_InternalValue: 100

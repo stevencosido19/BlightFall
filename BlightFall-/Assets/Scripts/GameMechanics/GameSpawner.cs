@@ -69,7 +69,7 @@ public class GameSpawner : NetworkBehaviour
         playerInstance.GetComponent<NetworkObject>().SpawnAsPlayerObject(clientId);
 
         // 6. Force the client to teleport to the spawn position immediately!
-        // (This calls the RPC we added in your CharacterController script)
-        playerInstance.GetComponent<CharacterController>().TeleportToSpawnRpc(spawnPos);
+        // Changed to PlayerController
+        playerInstance.GetComponent<PlayerController>().TeleportToSpawnRpc(spawnPos);
     }
 }

@@ -14,7 +14,7 @@ public class PushableRock : NetworkBehaviour
 
     private int currentClicks = 0;
     private bool isPushed = false;
-    private CharacterController nearbyKnight = null;
+    private PlayerController nearbyKnight = null; // Changed to PlayerController
 
     private void Update()
     {
@@ -66,7 +66,7 @@ public class PushableRock : NetworkBehaviour
             var localPlayerObj = NetworkManager.Singleton.LocalClient.PlayerObject;
             if (localPlayerObj != null)
             {
-                CharacterController player = localPlayerObj.GetComponent<CharacterController>();
+                PlayerController player = localPlayerObj.GetComponent<PlayerController>(); // Changed to PlayerController
 
                 // Checks if this player is the Knight
                 if (player != null && player.CanPushRocks)

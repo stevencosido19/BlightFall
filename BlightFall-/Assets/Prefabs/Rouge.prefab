@@ -13,6 +13,8 @@ GameObject:
   - component: {fileID: 2658833742250244111}
   - component: {fileID: 5859461238715342300}
   - component: {fileID: 4082439382122778214}
+  - component: {fileID: -5149561088167628015}
+  - component: {fileID: 2021452008792981481}
   m_Layer: 0
   m_Name: Rouge
   m_TagString: Player
@@ -147,12 +149,58 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CharacterController
   ShowTopMostFoldoutHeaderGroup: 1
-  characterRole: 1
+  characterRole: 2
+  isMovementLocked: 0
   moveSpeed: 6
   gravity: -9.81
   controllerHeight: 1.25
   controllerRadius: 0.5
   controllerCenter: {x: 0, y: 0.62, z: 0}
+--- !u!114 &-5149561088167628015
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5164986744217889544}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e26cd041b4bc64e4b92ee634f2680643, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
+  ShowTopMostFoldoutHeaderGroup: 1
+  knightHealth: 150
+  arbalistHealth: 100
+  rogueHealth: 80
+  CurrentHealth:
+    UpdateTraits:
+      MinSecondsBetweenUpdates: 0
+      MaxSecondsBetweenUpdates: 0
+    m_InternalValue: 100
+--- !u!114 &2021452008792981481
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5164986744217889544}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5b857c48c59db7946969c827c0b03574, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerCombat
+  ShowTopMostFoldoutHeaderGroup: 1
+  knightSlashDamage: 35
+  knightKnockbackForce: 22
+  knightSlashRadius: 2.2
+  knightSlashDistance: 1.8
+  knightCooldown: 1
+  rogueStabDamage: 25
+  rogueKnockbackForce: 5
+  rogueStabRadius: 0.9
+  rogueStabDistance: 1.4
+  rogueCooldown: 0.35
+  enableBackstabCrit: 1
 --- !u!1 &5953650399523309644
 GameObject:
   m_ObjectHideFlags: 0
