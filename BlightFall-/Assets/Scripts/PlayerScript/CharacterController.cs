@@ -2,9 +2,25 @@ using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+// Define your 3 character roles here
+public enum CharacterRole
+{
+    Knight,
+    Character2,
+    Character3
+}
+
 [RequireComponent(typeof(UnityEngine.CharacterController))]
 public class CharacterController : NetworkBehaviour
 {
+    [Header("Character Role")]
+    [Tooltip("Select which character this prefab represents")]
+    [SerializeField] private CharacterRole characterRole;
+    public CharacterRole Role => characterRole;
+
+    // Only the Knight is allowed to push rocks!
+    public bool CanPushRocks => characterRole == CharacterRole.Knight;
+
     [Header("Movement Settings")]
     [SerializeField] private float moveSpeed = 6f;
 
@@ -28,7 +44,6 @@ public class CharacterController : NetworkBehaviour
 
     private void OnValidate()
     {
-        // Automatically applies changes in the Inspector while editing or testing
         if (controller == null)
         {
             controller = GetComponent<UnityEngine.CharacterController>();
@@ -53,7 +68,7 @@ public class CharacterController : NetworkBehaviour
 
         if (IsOwner)
         {
-            Debug.Log($"Local player spawned with NetworkClientId: {OwnerClientId}");
+            Debug.Log($"Local player spawned as [{characterRole}] with ClientId: {OwnerClientId}");
         }
     }
 
@@ -107,13 +122,11 @@ public class CharacterController : NetworkBehaviour
         return Vector2.ClampMagnitude(input, 1f);
     }
 
-    // Tells Netcode to only run this code on the specific client that owns this character
     [Rpc(SendTo.Owner)]
     public void TeleportToSpawnRpc(Vector3 spawnPosition)
     {
         if (controller == null) controller = GetComponent<UnityEngine.CharacterController>();
 
-        // We must turn off the CharacterController, move the transform, and turn it back on.
         controller.enabled = false;
         transform.position = spawnPosition;
         controller.enabled = true;

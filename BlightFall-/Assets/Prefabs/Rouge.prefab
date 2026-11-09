@@ -147,6 +147,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CharacterController
   ShowTopMostFoldoutHeaderGroup: 1
+  characterRole: 1
   moveSpeed: 6
   gravity: -9.81
   controllerHeight: 1.25
