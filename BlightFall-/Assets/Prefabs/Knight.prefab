@@ -25,13 +25,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6409518780451966980}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.42261827, y: 0, z: 0, w: 0.9063079}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_LocalRotation: {x: 0.17364816, y: 0, z: 0, w: 0.9848078}
+  m_LocalPosition: {x: 0, y: 0.55, z: 0}
+  m_LocalScale: {x: 0.2, y: 0.2, z: 0.2}
+  m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 595718535267986107}
-  m_LocalEulerAnglesHint: {x: 50, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 20, y: 0, z: 0}
 --- !u!212 &3942727368041500548
 SpriteRenderer:
   serializedVersion: 2
@@ -86,7 +86,7 @@ SpriteRenderer:
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 4, y: 3}
+  m_Size: {x: 10.8, y: 10.8}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -241,7 +241,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CharacterController
   ShowTopMostFoldoutHeaderGroup: 1
   characterRole: 0
-  isMovementLocked: 0
+  CurrentKeyId:
+    UpdateTraits:
+      MinSecondsBetweenUpdates: 0
+      MaxSecondsBetweenUpdates: 0
+    m_InternalValue: 0
   moveSpeed: 6
   gravity: -9.81
   controllerHeight: 2.06
@@ -262,9 +266,20 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   knightSlashDamage: 35
   knightKnockbackForce: 22
-  slashRadius: 2.2
-  slashDistance: 1.8
-  attackCooldown: 1
+  knightSlashRadius: 2.2
+  knightSlashDistance: 1.8
+  knightCooldown: 1
+  rogueStabDamage: 25
+  rogueKnockbackForce: 4
+  rogueStabRadius: 1.2
+  rogueStabDistance: 1.4
+  rogueCooldown: 0.35
+  enableBackstabCrit: 1
+  arbalistBoltDamage: 30
+  arbalistBoltSpeed: 18
+  arbalistBoltRange: 14
+  arbalistCooldown: 0.7
+  arbalistKnockbackForce: 8
 --- !u!114 &-1774898399957192695
 MonoBehaviour:
   m_ObjectHideFlags: 0

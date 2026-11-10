@@ -5,162 +5,192 @@ using UnityEngine.UI;
 public enum LockableType
 {
     Chest,
-    Door
+    Door,       // Standard lockpick minigame door
+    KeyDoor     // Opens automatically when Rogue is near with matching Key ID
 }
 
 [RequireComponent(typeof(NetworkObject))]
 public class LockedChestOrDoor : NetworkBehaviour
 {
     [Header("Lock Settings")]
-    [Tooltip("Choose whether this object is a Chest or a Door")]
+    [Tooltip("Choose Chest, standard Door, or KeyDoor")]
     [SerializeField] private LockableType lockType = LockableType.Door;
-    [SerializeField] private float interactionRadius = 3.5f;
+    [SerializeField] private float interactionRadius = 4.5f; // Generous radius so colliders don't block it
+
+    [Header("Key Mechanics")]
+    [Tooltip("If this is a Chest, does it award a key?")]
+    [SerializeField] private bool givesKey = false;
+    [Tooltip("Key ID given by this chest OR Key ID needed to open this door")]
+    [SerializeField] private int keyId = 1;
 
     [Header("Mobile Interaction Button")]
     [Tooltip("Assign the on-screen 'Pick Lock' button from your Canvas")]
     [SerializeField] private Button mobileInteractButton;
 
-    // Network variable to sync unlocked status across all connected players
     private NetworkVariable<bool> isLocked = new NetworkVariable<bool>(
         true,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server
     );
 
-    private PlayerController nearbyRogue = null;
+    // Prevents race conditions while waiting for server response
+    private bool isUnlockedLocal = false;
+    private bool isButtonVisible = false;
 
     private void Start()
     {
-        if (mobileInteractButton == null)
+        if (mobileInteractButton != null)
         {
-            Debug.LogError($"[LockedChestOrDoor] 'Mobile Interact Button' is NOT assigned on {gameObject.name} in the Inspector!", this);
-            return;
+            mobileInteractButton.gameObject.SetActive(false);
         }
-
-        // Ensure the button starts hidden (DO NOT bind listeners here)
-        mobileInteractButton.gameObject.SetActive(false);
     }
 
     public override void OnDestroy()
     {
         base.OnDestroy();
-
-        if (nearbyRogue != null && mobileInteractButton != null)
-        {
-            mobileInteractButton.onClick.RemoveAllListeners();
-            mobileInteractButton.gameObject.SetActive(false);
-        }
+        HideButton();
     }
 
     private void Update()
     {
-        // Stop checking if this object is already unlocked
-        if (!isLocked.Value) return;
+        // If already unlocked locally or on server, do nothing
+        if (!isLocked.Value || isUnlockedLocal) return;
 
-        FindLocalRogue();
+        CheckLocalRogueInteraction();
     }
 
-    private void FindLocalRogue()
+    private void CheckLocalRogueInteraction()
     {
-        // 1. If Rogue walked away from THIS object, release the button
-        if (nearbyRogue != null)
-        {
-            float dist = GetHorizontalDistance(transform.position, nearbyRogue.transform.position);
-            if (dist > interactionRadius)
-            {
-                nearbyRogue = null;
-                if (mobileInteractButton != null)
-                {
-                    mobileInteractButton.onClick.RemoveAllListeners();
-                    mobileInteractButton.gameObject.SetActive(false);
-                }
-                if (LockpickMinigame.Instance != null) LockpickMinigame.Instance.CloseMinigame();
-            }
-            return;
-        }
-
-        // 2. Locate the local player
         if (NetworkManager.Singleton == null || NetworkManager.Singleton.LocalClient == null) return;
 
         var localObj = NetworkManager.Singleton.LocalClient.PlayerObject;
         if (localObj == null) return;
 
         PlayerController player = localObj.GetComponentInChildren<PlayerController>();
-        if (player == null) return;
+        if (player == null || !player.CanPickLocks) return;
 
-        // 3. Verify if player is allowed to pick locks
-        if (!player.CanPickLocks) return;
+        float distance = GetHorizontalDistance(transform.position, player.transform.position);
 
-        // 4. Check distance
-        float horizontalDistance = GetHorizontalDistance(transform.position, player.transform.position);
-
-        if (horizontalDistance <= interactionRadius)
+        // --- ROGUE IS IN RANGE ---
+        if (distance <= interactionRadius)
         {
-            nearbyRogue = player;
-
-            if (mobileInteractButton != null)
+            // CASE 1: KEY DOOR (Automatic unlock with key)
+            if (lockType == LockableType.KeyDoor)
             {
-                // CRUCIAL: Bind the button specifically to THIS object (Chest or Door)
-                mobileInteractButton.onClick.RemoveAllListeners();
-                mobileInteractButton.onClick.AddListener(OnMobileButtonPressed);
-                mobileInteractButton.gameObject.SetActive(true);
+                if (player.CurrentKeyId.Value == keyId)
+                {
+                    isUnlockedLocal = true; // Prevents calling multiple RPCs
+                    Debug.Log($"<color=green>[KeyDoor]</color> Rogue has Key #{keyId}! Destroying door...");
+                    OpenKeyDoorServerRpc(NetworkManager.Singleton.LocalClientId);
+                }
+                return;
+            }
 
-                Debug.Log($"<color=cyan>[Lockpick]</color> Button re-bound to {gameObject.name} ({lockType})");
+            // CASE 2: CHEST OR PICKABLE DOOR (Show Minigame button)
+            if (!isButtonVisible && mobileInteractButton != null)
+            {
+                ShowButton();
+            }
+        }
+        // --- ROGUE WALKED AWAY ---
+        else
+        {
+            if (isButtonVisible)
+            {
+                HideButton();
+                if (LockpickMinigame.Instance != null)
+                    LockpickMinigame.Instance.CloseMinigame();
             }
         }
     }
 
-    private float GetHorizontalDistance(Vector3 a, Vector3 b)
+    private void ShowButton()
     {
-        a.y = 0;
-        b.y = 0;
-        return Vector3.Distance(a, b);
+        if (mobileInteractButton == null) return;
+
+        isButtonVisible = true;
+        mobileInteractButton.onClick.RemoveAllListeners();
+        mobileInteractButton.onClick.AddListener(OnMobileButtonPressed);
+        mobileInteractButton.gameObject.SetActive(true);
+    }
+
+    private void HideButton()
+    {
+        if (mobileInteractButton == null) return;
+
+        isButtonVisible = false;
+        mobileInteractButton.onClick.RemoveAllListeners();
+        mobileInteractButton.gameObject.SetActive(false);
     }
 
     private void OnMobileButtonPressed()
     {
-        if (nearbyRogue != null && isLocked.Value)
+        if (isLocked.Value && !isUnlockedLocal)
         {
             if (LockpickMinigame.Instance != null)
             {
                 LockpickMinigame.Instance.StartLockpicking(OnMinigameSuccess);
-            }
-            else
-            {
-                Debug.LogError("[LockedChestOrDoor] LockpickMinigame.Instance is null! Make sure LockpickMinigame script is active in the scene.");
             }
         }
     }
 
     private void OnMinigameSuccess()
     {
-        nearbyRogue = null;
+        // 1. Immediately kill the button locally so it CANNOT stay on screen
+        isUnlockedLocal = true;
+        HideButton();
 
-        // Release the button so another door/chest can use it
-        if (mobileInteractButton != null)
-        {
-            mobileInteractButton.onClick.RemoveAllListeners();
-            mobileInteractButton.gameObject.SetActive(false);
-        }
-
-        UnlockServerRpc();
+        // 2. Notify the server who unlocked it
+        ulong localId = NetworkManager.Singleton.LocalClientId;
+        UnlockServerRpc(localId);
     }
 
     [Rpc(SendTo.Server)]
-    private void UnlockServerRpc()
+    public void UnlockServerRpc(ulong interactorClientId)
     {
         isLocked.Value = false;
 
         if (lockType == LockableType.Door)
         {
-            Debug.Log($"[LockedChestOrDoor] Door picked! Despawning {gameObject.name}.");
             GetComponent<NetworkObject>().Despawn(true);
         }
         else // Chest
         {
-            Debug.Log($"[LockedChestOrDoor] Chest picked! Unlocking {gameObject.name}.");
             OpenChestClientRpc();
+
+            // Give the key to the Rogue on the server
+            if (givesKey)
+            {
+                if (NetworkManager.Singleton.ConnectedClients.TryGetValue(interactorClientId, out var client))
+                {
+                    var player = client.PlayerObject.GetComponentInChildren<PlayerController>();
+                    if (player != null)
+                    {
+                        player.CurrentKeyId.Value = keyId;
+                        Debug.Log($"<color=yellow>[Chest]</color> Server awarded Key #{keyId} to Client {interactorClientId}!");
+                    }
+                }
+            }
         }
+    }
+
+    [Rpc(SendTo.Server)]
+    public void OpenKeyDoorServerRpc(ulong interactorClientId)
+    {
+        isLocked.Value = false;
+
+        // Consume the key from the player's inventory
+        if (NetworkManager.Singleton.ConnectedClients.TryGetValue(interactorClientId, out var client))
+        {
+            var player = client.PlayerObject.GetComponentInChildren<PlayerController>();
+            if (player != null)
+            {
+                player.CurrentKeyId.Value = 0; // Key consumed!
+            }
+        }
+
+        Debug.Log($"<color=green>[KeyDoor]</color> Door #{keyId} destroyed with key!");
+        GetComponent<NetworkObject>().Despawn(true); // Netcode authoritative destroy
     }
 
     [Rpc(SendTo.ClientsAndHost)]
@@ -170,9 +200,16 @@ public class LockedChestOrDoor : NetworkBehaviour
         if (renderer != null) renderer.material.color = Color.green;
     }
 
+    private float GetHorizontalDistance(Vector3 a, Vector3 b)
+    {
+        a.y = 0;
+        b.y = 0;
+        return Vector3.Distance(a, b);
+    }
+
     private void OnDrawGizmosSelected()
     {
-        Gizmos.color = (lockType == LockableType.Door) ? Color.cyan : Color.yellow;
+        Gizmos.color = (lockType == LockableType.Chest) ? Color.yellow : Color.cyan;
         Gizmos.DrawWireSphere(transform.position, interactionRadius);
     }
 }

@@ -23,11 +23,19 @@ public class PlayerController : NetworkBehaviour
     public bool CanPickLocks => characterRole == CharacterRole.Rogue;
     public bool CanUseCrossbow => characterRole == CharacterRole.Arbalist;
 
-    // Set to true when Arbalist is aiming/scoping to freeze movement
-    [HideInInspector] public bool isMovementLocked = false;
+    // NonSerialized prevents Unity from permanently saving 'true' into the prefab
+    [System.NonSerialized] public bool isMovementLocked = false;
 
-    // Remembers the last direction you walked (Left, Right, Up, Down) without rotating the GameObject!
+    // Remembers the last direction you walked without rotating the 2D transform
     public Vector3 LastFacingDirection { get; private set; } = Vector3.forward;
+
+    [Header("Inventory (Key)")]
+    // 0 = No key, 1 = Key #1, 2 = Key #2, etc. Synced across the network.
+    public NetworkVariable<int> CurrentKeyId = new NetworkVariable<int>(
+        0,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
 
     [Header("Movement Settings")]
     [SerializeField] private float moveSpeed = 6f;
@@ -77,6 +85,21 @@ public class PlayerController : NetworkBehaviour
         if (IsOwner)
         {
             Debug.Log($"Local player spawned as [{characterRole}] with ClientId: {OwnerClientId}");
+
+            // Automatically toggle the on-screen Key UI when you pick up or use a key
+            CurrentKeyId.OnValueChanged += (previous, current) =>
+            {
+                if (KeyHUD.Instance != null)
+                {
+                    KeyHUD.Instance.SetKeyVisible(current > 0);
+                }
+            };
+
+            // Check initial state on spawn
+            if (KeyHUD.Instance != null)
+            {
+                KeyHUD.Instance.SetKeyVisible(CurrentKeyId.Value > 0);
+            }
         }
     }
 
