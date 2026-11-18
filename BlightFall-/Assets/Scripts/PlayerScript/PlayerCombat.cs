@@ -11,6 +11,12 @@ public class PlayerCombat : NetworkBehaviour
     [SerializeField] private float knightSlashRadius = 2.2f;
     [SerializeField] private float knightSlashDistance = 1.8f;
     [SerializeField] private float knightCooldown = 1.0f;
+    [SerializeField] private Animator knightAnimator;
+    [SerializeField] private SpriteRenderer knightSprite;
+    [SerializeField] private string knightAttackTrigger = "Attack";
+    [SerializeField] private Sprite knightSlashEffectSprite;
+    [SerializeField] private Vector2 knightSlashScale = new Vector2(1.5f, 1.5f);
+    [SerializeField] private float knightSlashDuration = 0.18f;
 
     [Header("Rogue - Fast Dagger Stab")]
     [SerializeField] private int rogueStabDamage = 25;
@@ -19,6 +25,12 @@ public class PlayerCombat : NetworkBehaviour
     [SerializeField] private float rogueStabDistance = 1.4f;
     [SerializeField] private float rogueCooldown = 0.35f;
     [SerializeField] private bool enableBackstabCrit = true;
+    [SerializeField] private Animator rogueAnimator;
+    [SerializeField] private SpriteRenderer rogueSprite;
+    [SerializeField] private string rogueAttackTrigger = "Attack";
+    [SerializeField] private Sprite rogueStabEffectSprite;
+    [SerializeField] private Vector2 rogueStabScale = new Vector2(1.0f, 1.0f);
+    [SerializeField] private float rogueStabDuration = 0.12f;
 
     [Header("Arbalist - Standard Crossbow Bolt")]
     [SerializeField] private int arbalistBoltDamage = 30;
@@ -26,6 +38,18 @@ public class PlayerCombat : NetworkBehaviour
     [SerializeField] private float arbalistBoltRange = 14f;
     [SerializeField] private float arbalistCooldown = 0.7f;
     [SerializeField] private float arbalistKnockbackForce = 8f;
+    [SerializeField] private Animator arbalistAnimator;
+    [SerializeField] private SpriteRenderer arbalistSprite;
+    [SerializeField] private string arbalistAttackTrigger = "Attack";
+    [SerializeField] private Sprite arbalistBoltSprite;
+    [SerializeField] private Vector2 arbalistBoltScale = new Vector2(0.8f, 0.8f);
+
+    [Header("Attack Sprite Orientation & Sorting")]
+    [Tooltip("90 = lies flat on the ground for top-down/2.5D. Lower (e.g. 60) to tilt toward camera.")]
+    [SerializeField] private float attackSpriteTiltX = 90f;
+    [Tooltip("0 if your attack sprite is drawn pointing UP, 90 if drawn pointing RIGHT, -90 if pointing LEFT.")]
+    [SerializeField] private float attackSpriteRotationOffset = 0f;
+    [SerializeField] private int attackSortingOrder = 10;
 
     private PlayerController playerController;
     private float lastAttackTime = -99f;
@@ -46,7 +70,6 @@ public class PlayerCombat : NetworkBehaviour
         }
     }
 
-    // Coroutine ensures the client finds the button even if UI takes a frame to initialize
     private IEnumerator FindAndBindAttackButtonRoutine()
     {
         int attempts = 0;
@@ -80,7 +103,6 @@ public class PlayerCombat : NetworkBehaviour
         if (!IsOwner) return;
 
 #if UNITY_EDITOR
-        // Test in editor with [J] key
         if (UnityEngine.InputSystem.Keyboard.current != null &&
             UnityEngine.InputSystem.Keyboard.current.jKey.wasPressedThisFrame)
         {
@@ -101,15 +123,12 @@ public class PlayerCombat : NetworkBehaviour
 
         Vector3 myCurrentPosition = transform.position;
 
-        Debug.Log($"<color=cyan>[PlayerCombat]</color> Client {OwnerClientId} attacking at {myCurrentPosition} as {playerController.Role}");
-
         // 1. KNIGHT
         if (playerController.Role == CharacterRole.Knight)
         {
             if (Time.time < lastAttackTime + knightCooldown) return;
             lastAttackTime = Time.time;
 
-            // Pass current position across the network!
             ExecuteKnightSlashServerRpc(myCurrentPosition, attackDir);
         }
         // 2. ROGUE
@@ -136,7 +155,6 @@ public class PlayerCombat : NetworkBehaviour
     [Rpc(SendTo.Server)]
     public void ExecuteKnightSlashServerRpc(Vector3 clientPos, Vector3 direction)
     {
-        // Use clientPos so it happens where the client is actually standing
         Vector3 slashCenter = clientPos + (direction * knightSlashDistance) + Vector3.up;
         SpawnKnightSlashVisualClientRpc(slashCenter, direction);
 
@@ -144,7 +162,7 @@ public class PlayerCombat : NetworkBehaviour
 
         foreach (Collider hit in hits)
         {
-            if (hit.transform.root == transform.root) continue; // Don't hit yourself
+            if (hit.transform.root == transform.root) continue;
 
             IDamageable target = hit.GetComponentInParent<IDamageable>();
             if (target != null)
@@ -224,86 +242,173 @@ public class PlayerCombat : NetworkBehaviour
     }
 
     // ==========================================
-    //            PROTOTYPE VISUALS
+    //          ANIMATION & VISUAL RPCS
     // ==========================================
+    private void PlayCharacterAttackAnimation(Animator anim, SpriteRenderer sprite, string triggerName, Vector3 dir)
+    {
+        if (sprite != null && Mathf.Abs(dir.x) > 0.05f)
+        {
+            sprite.flipX = dir.x < 0f;
+        }
+
+        if (anim != null && anim.gameObject.activeInHierarchy && anim.enabled && anim.runtimeAnimatorController != null && !string.IsNullOrEmpty(triggerName))
+        {
+            anim.SetTrigger(triggerName);
+        }
+    }
+
     [Rpc(SendTo.ClientsAndHost)]
     public void SpawnKnightSlashVisualClientRpc(Vector3 pos, Vector3 dir)
     {
+        PlayCharacterAttackAnimation(knightAnimator, knightSprite, knightAttackTrigger, dir);
         StartCoroutine(SlashVisualRoutine(pos, dir));
     }
 
     [Rpc(SendTo.ClientsAndHost)]
     public void SpawnRogueStabVisualClientRpc(Vector3 origin, Vector3 dir)
     {
+        PlayCharacterAttackAnimation(rogueAnimator, rogueSprite, rogueAttackTrigger, dir);
         StartCoroutine(StabVisualRoutine(origin, dir));
     }
 
     [Rpc(SendTo.ClientsAndHost)]
     public void SpawnBoltVisualClientRpc(Vector3 startPos, Vector3 dir)
     {
+        PlayCharacterAttackAnimation(arbalistAnimator, arbalistSprite, arbalistAttackTrigger, dir);
         StartCoroutine(BoltVisualRoutine(startPos, dir));
+    }
+
+    // ==========================================
+    //         2D SPRITE ATTACK VISUALS
+    // ==========================================
+    private GameObject CreateAttackSpriteObject(string objName, Sprite sprite, Vector3 pos, Vector3 dir, Vector2 scale, out SpriteRenderer sr)
+    {
+        GameObject visual = new GameObject(objName);
+        visual.transform.position = pos;
+
+        float angleY = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;
+        visual.transform.rotation = Quaternion.Euler(0f, angleY, 0f) * Quaternion.Euler(attackSpriteTiltX, 0f, attackSpriteRotationOffset);
+        visual.transform.localScale = new Vector3(scale.x, scale.y, 1f);
+
+        sr = visual.AddComponent<SpriteRenderer>();
+        sr.sprite = sprite;
+        sr.sortingOrder = attackSortingOrder;
+        return visual;
     }
 
     private IEnumerator SlashVisualRoutine(Vector3 pos, Vector3 dir)
     {
-        GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        visual.name = "SlashArc";
-        Destroy(visual.GetComponent<Collider>());
-
-        visual.transform.position = pos;
-        visual.transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
-        visual.transform.localScale = new Vector3(3f, 0.15f, 0.8f);
-
-        var renderer = visual.GetComponent<Renderer>();
-        renderer.material.color = Color.white;
-
-        float timer = 0f;
-        while (timer < 0.15f)
+        if (knightSlashEffectSprite != null)
         {
-            timer += Time.deltaTime;
-            visual.transform.localScale += new Vector3(2f, 0f, 1f) * Time.deltaTime * 10f;
-            yield return null;
-        }
+            GameObject visual = CreateAttackSpriteObject("SlashSprite", knightSlashEffectSprite, pos, dir, knightSlashScale, out SpriteRenderer sr);
+            Vector3 startScale = visual.transform.localScale * 0.85f;
+            Vector3 endScale = visual.transform.localScale * 1.15f;
 
-        Destroy(visual);
+            float timer = 0f;
+            while (timer < knightSlashDuration)
+            {
+                timer += Time.deltaTime;
+                float t = timer / knightSlashDuration;
+                visual.transform.localScale = Vector3.Lerp(startScale, endScale, t);
+
+                Color c = sr.color;
+                c.a = 1f - t;
+                sr.color = c;
+
+                yield return null;
+            }
+
+            Destroy(visual);
+        }
+        else
+        {
+            // Fallback prototype cube if no sprite assigned
+            GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            visual.name = "SlashArc";
+            Destroy(visual.GetComponent<Collider>());
+
+            visual.transform.position = pos;
+            visual.transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
+            visual.transform.localScale = new Vector3(3f, 0.15f, 0.8f);
+            visual.GetComponent<Renderer>().material.color = Color.white;
+
+            float timer = 0f;
+            while (timer < 0.15f)
+            {
+                timer += Time.deltaTime;
+                visual.transform.localScale += new Vector3(2f, 0f, 1f) * Time.deltaTime * 10f;
+                yield return null;
+            }
+
+            Destroy(visual);
+        }
     }
 
     private IEnumerator StabVisualRoutine(Vector3 origin, Vector3 dir)
     {
-        GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        visual.name = "DaggerThrust";
-        Destroy(visual.GetComponent<Collider>());
-
-        visual.transform.localScale = new Vector3(0.2f, 0.1f, 1.6f);
-        visual.transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
-        visual.transform.position = origin + (dir * 0.8f);
-
-        var renderer = visual.GetComponent<Renderer>();
-        renderer.material.color = new Color(0.85f, 0.3f, 1f);
-
-        float timer = 0f;
-        while (timer < 0.08f)
+        if (rogueStabEffectSprite != null)
         {
-            timer += Time.deltaTime;
-            visual.transform.position += dir * Time.deltaTime * 8f;
-            yield return null;
-        }
+            Vector3 startPos = origin + (dir * 0.8f);
+            GameObject visual = CreateAttackSpriteObject("StabSprite", rogueStabEffectSprite, startPos, dir, rogueStabScale, out SpriteRenderer sr);
 
-        Destroy(visual);
+            float timer = 0f;
+            while (timer < rogueStabDuration)
+            {
+                timer += Time.deltaTime;
+                float t = timer / rogueStabDuration;
+                visual.transform.position += dir * Time.deltaTime * 8f;
+
+                Color c = sr.color;
+                c.a = 1f - (t * 0.6f);
+                sr.color = c;
+
+                yield return null;
+            }
+
+            Destroy(visual);
+        }
+        else
+        {
+            GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            visual.name = "DaggerThrust";
+            Destroy(visual.GetComponent<Collider>());
+
+            visual.transform.localScale = new Vector3(0.2f, 0.1f, 1.6f);
+            visual.transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
+            visual.transform.position = origin + (dir * 0.8f);
+            visual.GetComponent<Renderer>().material.color = new Color(0.85f, 0.3f, 1f);
+
+            float timer = 0f;
+            while (timer < 0.08f)
+            {
+                timer += Time.deltaTime;
+                visual.transform.position += dir * Time.deltaTime * 8f;
+                yield return null;
+            }
+
+            Destroy(visual);
+        }
     }
 
     private IEnumerator BoltVisualRoutine(Vector3 startPos, Vector3 dir)
     {
-        GameObject bolt = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        bolt.name = "CrossbowBolt";
-        Destroy(bolt.GetComponent<Collider>());
+        GameObject bolt;
 
-        bolt.transform.position = startPos;
-        bolt.transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
-        bolt.transform.localScale = new Vector3(0.12f, 0.12f, 1.2f);
+        if (arbalistBoltSprite != null)
+        {
+            bolt = CreateAttackSpriteObject("CrossbowBoltSprite", arbalistBoltSprite, startPos, dir, arbalistBoltScale, out _);
+        }
+        else
+        {
+            bolt = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            bolt.name = "CrossbowBolt";
+            Destroy(bolt.GetComponent<Collider>());
 
-        var renderer = bolt.GetComponent<Renderer>();
-        renderer.material.color = new Color(1f, 0.8f, 0.2f);
+            bolt.transform.position = startPos;
+            bolt.transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
+            bolt.transform.localScale = new Vector3(0.12f, 0.12f, 1.2f);
+            bolt.GetComponent<Renderer>().material.color = new Color(1f, 0.8f, 0.2f);
+        }
 
         float distanceTraveled = 0f;
         while (distanceTraveled < arbalistBoltRange)
