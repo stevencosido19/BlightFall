@@ -1,0 +1,10 @@
+# ninja log v5
+35	2775	8171417895957151	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	fdc4ca127bca7b3b
+60	2836	8171417896468441	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	e2a6d4e50437602d
+104	2839	8171417896756357	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	37b3bca7e9bd1499
+1	2843	8171417896366553	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	1cda4451059b915b
+14	2925	8171417897840221	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	b12ab757f6b18547
+76	3197	8171417899855047	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	4c730e3e7337d9d5
+47	3243	8171417901041744	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	1a4447f3caef29ad
+24	3322	8171417901788895	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	66e656411174eb61
+3322	4609	8171417914469263	C:/Users/admin/Documents/BlightFall/BlightFall-/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/4i2d2mv2/obj/arm64-v8a/libgame.so	84dbc260bdf7ecb6

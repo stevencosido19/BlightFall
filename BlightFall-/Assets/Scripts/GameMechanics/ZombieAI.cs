@@ -1,26 +1,23 @@
-using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.AI;
 
-[RequireComponent(typeof(UnityEngine.CharacterController))]
+[RequireComponent(typeof(NavMeshAgent))]
 [RequireComponent(typeof(NetworkObject))]
 public class ZombieAI : NetworkBehaviour, IDamageable
 {
     [Header("Zombie Stats")]
     [SerializeField] private int maxHealth = 60;
     [SerializeField] private int attackDamage = 15;
-    [SerializeField] private float attackRange = 1.3f;
+    [SerializeField] private float attackRange = 1.4f;
     [SerializeField] private float attackCooldown = 1.2f;
 
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 3.2f;
-    [SerializeField] private float gravity = -9.81f;
+    [SerializeField] private float pathUpdateInterval = 0.2f;
 
-    [Header("Crowd Separation (Prevent Stacking)")]
-    [Tooltip("Minimum distance zombies try to keep from each other (should be slightly bigger than 2x CharacterController radius)")]
-    [SerializeField] private float separationRadius = 1.25f;
-    [Tooltip("How strongly zombies push apart horizontally")]
-    [SerializeField] private float separationForce = 3.5f;
+    [Header("Optional 2D Sprite Flip")]
+    [SerializeField] private SpriteRenderer zombieSprite;
 
     public NetworkVariable<int> CurrentHealth = new NetworkVariable<int>(
         60,
@@ -28,97 +25,147 @@ public class ZombieAI : NetworkBehaviour, IDamageable
         NetworkVariableWritePermission.Server
     );
 
-    // Event that notifies the wave spawner whenever a zombie is killed on the server
-    public static System.Action OnZombieDiedServer;
+    public NetworkVariable<bool> IsActiveInPool = new NetworkVariable<bool>(
+        false,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
 
-    // Tracks active zombies for fast separation without FindObjectsByType
-    private static readonly List<ZombieAI> ActiveZombies = new List<ZombieAI>();
+    public static System.Action OnZombieDiedServer;
 
     public Vector3 FacingDirection { get; private set; } = Vector3.forward;
 
     private Transform targetPlayer;
-    private UnityEngine.CharacterController controller;
-    private Vector3 velocity;
+    private NavMeshAgent agent;
     private Vector3 knockbackVelocity;
     private float lastAttackTime = -99f;
     private float searchTimer = 0f;
+    private float pathTimer = 0f;
 
     private void Awake()
     {
-        controller = GetComponent<UnityEngine.CharacterController>();
-    }
-
-    private void OnEnable()
-    {
-        if (!ActiveZombies.Contains(this))
+        agent = GetComponent<NavMeshAgent>();
+        if (agent != null)
         {
-            ActiveZombies.Add(this);
+            // Keep 2D sprite upright—do NOT let NavMeshAgent rotate the transform!
+            agent.updateRotation = false;
+            agent.speed = moveSpeed;
+            agent.stoppingDistance = attackRange * 0.75f;
         }
-    }
-
-    private void OnDisable()
-    {
-        ActiveZombies.Remove(this);
     }
 
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
 
-        if (!ActiveZombies.Contains(this))
+        // Only the Server runs NavMeshAgent; clients receive positions from NetworkTransform
+        if (!IsServer && agent != null)
         {
-            ActiveZombies.Add(this);
+            agent.enabled = false;
         }
 
         if (IsServer)
         {
             CurrentHealth.Value = maxHealth;
-            velocity = Vector3.zero;
             knockbackVelocity = Vector3.zero;
+        }
+
+        IsActiveInPool.OnValueChanged += OnPoolStateChanged;
+        ApplyPoolVisuals(IsActiveInPool.Value);
+
+        if (!IsServer)
+        {
+            Debug.Log($"<color=cyan>[ZombieClient]</color> OnNetworkSpawn ID={NetworkObjectId} | Active={IsActiveInPool.Value} | Pos={transform.position}");
         }
     }
 
     public override void OnNetworkDespawn()
     {
+        IsActiveInPool.OnValueChanged -= OnPoolStateChanged;
         base.OnNetworkDespawn();
-        ActiveZombies.Remove(this);
     }
 
-    // Called by ZombiePool when reusing this zombie
-    public void SafeSpawnReset(Vector3 spawnPosition)
+    private void OnPoolStateChanged(bool previous, bool current)
     {
-        if (controller == null) controller = GetComponent<UnityEngine.CharacterController>();
+        ApplyPoolVisuals(current);
 
-        controller.enabled = false;
-        transform.position = spawnPosition;
-        velocity = Vector3.zero;
-        knockbackVelocity = Vector3.zero;
-        targetPlayer = null;
-        searchTimer = 0f;
-        controller.enabled = true;
-
-        if (IsServer)
+        if (!IsServer)
         {
-            CurrentHealth.Value = maxHealth;
+            Debug.Log($"<color=lime>[ZombieClient]</color> ID={NetworkObjectId} IsActiveInPool: {previous} -> {current} | Pos={transform.position}");
         }
     }
 
-    // Alias for compatibility with ZombiePool
+    public void ApplyPoolVisuals(bool isActive)
+    {
+        foreach (var col in GetComponentsInChildren<Collider>(true))
+        {
+            if (col is not CharacterController)
+            {
+                col.enabled = isActive;
+            }
+        }
+
+        var sprites = GetComponentsInChildren<SpriteRenderer>(true);
+        foreach (var rend in sprites)
+        {
+            rend.enabled = isActive;
+        }
+
+        var meshes = GetComponentsInChildren<MeshRenderer>(true);
+        foreach (var rend in meshes)
+        {
+            rend.enabled = isActive;
+        }
+
+        if (!IsServer && isActive)
+        {
+            Debug.Log($"<color=yellow>[ZombieClient]</color> ApplyPoolVisuals(TRUE) on ID={NetworkObjectId} | Sprites={sprites.Length} | Meshes={meshes.Length} | Pos={transform.position}");
+        }
+    }
+
+    public void SafeSpawnReset(Vector3 spawnPosition)
+    {
+        if (agent == null) agent = GetComponent<NavMeshAgent>();
+
+        knockbackVelocity = Vector3.zero;
+        targetPlayer = null;
+        searchTimer = 0f;
+        pathTimer = 0f;
+
+        if (IsServer && agent != null)
+        {
+            if (NavMesh.SamplePosition(spawnPosition, out NavMeshHit hit, 5f, NavMesh.AllAreas))
+            {
+                spawnPosition = hit.position;
+            }
+
+            transform.position = spawnPosition;
+            agent.enabled = true;
+            agent.Warp(spawnPosition);
+            agent.isStopped = false;
+            agent.speed = moveSpeed;
+            agent.stoppingDistance = attackRange * 0.75f;
+
+            CurrentHealth.Value = maxHealth;
+            IsActiveInPool.Value = true;
+        }
+    }
+
     public void ResetForSpawn(Vector3 spawnPosition) => SafeSpawnReset(spawnPosition);
 
     public void TakeDamage(int damage, Vector3 knockbackForce)
     {
-        if (!IsServer) return;
+        if (!IsServer || !IsActiveInPool.Value) return;
 
         CurrentHealth.Value -= damage;
         Debug.Log($"<color=red>[ZombieAI]</color> Took {damage} dmg! HP: {CurrentHealth.Value}/{maxHealth}");
 
         knockbackVelocity = knockbackForce;
+        knockbackVelocity.y = 0f;
 
         if (CurrentHealth.Value <= 0)
         {
             Debug.Log("<color=red>[ZombieAI]</color> Zombie died! Returning to pool.");
-
             OnZombieDiedServer?.Invoke();
 
             if (ZombiePool.Instance != null)
@@ -134,111 +181,72 @@ public class ZombieAI : NetworkBehaviour, IDamageable
 
     private void Update()
     {
-        if (!IsServer) return;
+        if (!IsServer || !IsActiveInPool.Value || agent == null || !agent.enabled || !agent.isOnNavMesh) return;
 
-        // 1. Periodically search for closest alive player
+        // 1. Search for closest alive player
         searchTimer -= Time.deltaTime;
         if (searchTimer <= 0f)
         {
             FindClosestPlayer();
-            searchTimer = 0.5f;
+            searchTimer = 0.4f;
         }
 
-        // Calculate horizontal push away from nearby zombies
-        Vector3 separation = CalculateSeparationVector() * separationForce;
-
-        // 2. Handle Knockback or Chase + Separation
+        // 2. Handle Knockback (stays inside NavMesh walls)
         if (knockbackVelocity.sqrMagnitude > 0.1f)
         {
-            controller.Move((knockbackVelocity + separation * 0.5f) * Time.deltaTime);
+            agent.isStopped = true;
+            agent.Move(knockbackVelocity * Time.deltaTime);
             knockbackVelocity = Vector3.Lerp(knockbackVelocity, Vector3.zero, Time.deltaTime * 6f);
+            return;
         }
-        else if (targetPlayer != null)
+
+        if (agent.isStopped)
         {
-            Vector3 direction = targetPlayer.position - transform.position;
-            direction.y = 0f;
+            agent.isStopped = false;
+        }
 
-            float distanceToPlayer = direction.magnitude;
-            Vector3 chaseMove = Vector3.zero;
-
-            if (distanceToPlayer > 0.1f)
+        // 3. Pathfind & Attack
+        if (targetPlayer != null)
+        {
+            pathTimer -= Time.deltaTime;
+            if (pathTimer <= 0f)
             {
-                Vector3 moveDir = direction.normalized;
-                FacingDirection = moveDir;
+                agent.SetDestination(targetPlayer.position);
+                pathTimer = pathUpdateInterval;
+            }
 
-                if (distanceToPlayer > attackRange * 0.8f)
+            // Update FacingDirection for Rogue backstab crits & optional sprite flip
+            Vector3 moveVel = agent.velocity;
+            moveVel.y = 0f;
+            if (moveVel.sqrMagnitude > 0.05f)
+            {
+                FacingDirection = moveVel.normalized;
+            }
+            else
+            {
+                Vector3 toPlayer = targetPlayer.position - transform.position;
+                toPlayer.y = 0f;
+                if (toPlayer.sqrMagnitude > 0.01f)
                 {
-                    chaseMove = moveDir * moveSpeed;
+                    FacingDirection = toPlayer.normalized;
                 }
             }
 
-            Vector3 totalHorizontalMove = chaseMove + separation;
-            totalHorizontalMove.y = 0f;
-
-            if (totalHorizontalMove.sqrMagnitude > 0.001f)
+            if (zombieSprite != null && Mathf.Abs(FacingDirection.x) > 0.05f)
             {
-                controller.Move(totalHorizontalMove * Time.deltaTime);
+                zombieSprite.flipX = FacingDirection.x < 0f;
             }
 
-            if (distanceToPlayer <= attackRange)
+            float distToPlayer = Vector3.Distance(
+                new Vector3(transform.position.x, 0f, transform.position.z),
+                new Vector3(targetPlayer.position.x, 0f, targetPlayer.position.z)
+            );
+
+            if (distToPlayer <= attackRange)
             {
                 TryAttackPlayer();
             }
         }
-        else if (separation.sqrMagnitude > 0.001f)
-        {
-            controller.Move(separation * Time.deltaTime);
-        }
-
-        // 3. Apply Gravity with Terminal Velocity Clamp
-        if (controller.isGrounded && velocity.y < 0)
-        {
-            velocity.y = -2f;
-        }
-        else
-        {
-            velocity.y += gravity * Time.deltaTime;
-            velocity.y = Mathf.Max(velocity.y, -12f);
-        }
-
-        controller.Move(velocity * Time.deltaTime);
-    }
-
-    private Vector3 CalculateSeparationVector()
-    {
-        Vector3 separation = Vector3.zero;
-        float radiusSq = separationRadius * separationRadius;
-
-        for (int i = 0; i < ActiveZombies.Count; i++)
-        {
-            ZombieAI other = ActiveZombies[i];
-            if (other == null || other == this || !other.gameObject.activeInHierarchy || !other.IsSpawned)
-                continue;
-
-            if (other.CurrentHealth.Value <= 0)
-                continue;
-
-            Vector3 diff = transform.position - other.transform.position;
-            diff.y = 0f; // Push horizontally ONLY so they never push up onto each other
-
-            float distSq = diff.sqrMagnitude;
-            if (distSq < radiusSq)
-            {
-                if (distSq < 0.0001f)
-                {
-                    // If spawned on the exact same spot, pick a unique angle to split apart
-                    float angle = (Mathf.Abs(GetInstanceID()) % 360) * Mathf.Deg2Rad;
-                    diff = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
-                    distSq = 0.01f;
-                }
-
-                float dist = Mathf.Sqrt(distSq);
-                float strength = 1f - (dist / separationRadius);
-                separation += (diff / dist) * strength;
-            }
-        }
-
-        return separation;
     }
 
     private void TryAttackPlayer()
@@ -266,7 +274,6 @@ public class ZombieAI : NetworkBehaviour, IDamageable
         {
             if (player == null) continue;
 
-            // Skip dead players (Souls) so zombies chase living teammates
             PlayerHealth health = player.GetComponent<PlayerHealth>();
             if (health != null && health.IsDead.Value) continue;
 
@@ -285,8 +292,5 @@ public class ZombieAI : NetworkBehaviour, IDamageable
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position + Vector3.up, attackRange);
-
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position + Vector3.up, separationRadius);
     }
 }

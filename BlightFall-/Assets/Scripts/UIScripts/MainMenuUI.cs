@@ -23,9 +23,12 @@ public class MainMenuUI : MonoBehaviour
     [Header("Network Settings")]
     [SerializeField] private ushort port = 7777;
     [SerializeField] private string lobbySceneName = "LobbyScene";
+    [SerializeField] private float connectTimeoutSeconds = 4f;
+    [SerializeField] private int maxPacketQueueSize = 1024;
+    [SerializeField] private int maxSendQueueSize = 524288;
 
-    // Blocks double-clicks that would start two coroutines / two connections.
     private bool isBusy;
+    private Coroutine connectTimeoutRoutine;
 
     private void Start()
     {
@@ -37,7 +40,7 @@ public class MainMenuUI : MonoBehaviour
 
     private void OnDestroy()
     {
-        // This object dies when the scene changes; never leave callbacks pointing at it.
+        StopTimeoutRoutine();
         UnsubscribeClientCallbacks();
     }
 
@@ -95,10 +98,13 @@ public class MainMenuUI : MonoBehaviour
             yield break;
         }
 
-        // Listen on all interfaces. With the default (127.0.0.1) only the local machine can connect.
         var transport = nm.NetworkConfig.NetworkTransport as UnityTransport;
         if (transport != null)
+        {
             transport.SetConnectionData("127.0.0.1", port, "0.0.0.0");
+            transport.MaxPacketQueueSize = maxPacketQueueSize;
+            transport.MaxSendQueueSize = maxSendQueueSize;
+        }
 
         if (!nm.StartHost())
         {
@@ -127,7 +133,6 @@ public class MainMenuUI : MonoBehaviour
         string targetIP = ipInputField != null ? ipInputField.text.Trim() : string.Empty;
         if (string.IsNullOrEmpty(targetIP)) targetIP = "127.0.0.1";
 
-        // UnityTransport expects a literal IPv4 address, not a hostname.
         if (!IPAddress.TryParse(targetIP, out IPAddress parsed) || parsed.AddressFamily != AddressFamily.InterNetwork)
         {
             SetStatus("Enter a valid IPv4 address, e.g. 192.168.1.20");
@@ -161,7 +166,10 @@ public class MainMenuUI : MonoBehaviour
         }
 
         transport.SetConnectionData(targetIP, port);
-        transport.MaxConnectAttempts = 5; // fail in ~5s instead of the default ~60s
+        // Set higher than our timeout so we cancel cleanly BEFORE UnityTransport throws a red LogError
+        transport.MaxConnectAttempts = 10;
+        transport.MaxPacketQueueSize = maxPacketQueueSize;
+        transport.MaxSendQueueSize = maxSendQueueSize;
 
         nm.OnClientConnectedCallback += OnClientConnected;
         nm.OnClientDisconnectCallback += OnClientDisconnected;
@@ -171,34 +179,73 @@ public class MainMenuUI : MonoBehaviour
             UnsubscribeClientCallbacks();
             SetStatus("Failed to start client.");
             isBusy = false;
+            yield break;
         }
+
+        StopTimeoutRoutine();
+        connectTimeoutRoutine = StartCoroutine(ConnectTimeoutRoutine(targetIP));
+    }
+
+    private IEnumerator ConnectTimeoutRoutine(string targetIP)
+    {
+        yield return new WaitForSecondsRealtime(connectTimeoutSeconds);
+
+        // If still trying to connect after timeout, cancel cleanly without red LogError
+        if (!isBusy) yield break;
+
+        UnsubscribeClientCallbacks();
+
+        NetworkManager nm = NetworkManager.Singleton;
+        if (nm != null && (nm.IsListening || nm.IsClient))
+        {
+            nm.Shutdown();
+        }
+
+        SetStatus($"No host found at {targetIP}. Check the IP and try again.");
+        isBusy = false;
+        connectTimeoutRoutine = null;
     }
 
     private void OnClientConnected(ulong clientId)
     {
-        // Check if the person who just connected is US (the local client)
-        if (clientId == NetworkManager.Singleton.LocalClientId)
+        if (NetworkManager.Singleton != null && clientId == NetworkManager.Singleton.LocalClientId)
         {
+            StopTimeoutRoutine();
             SetStatus("Connected! Loading lobby...");
 
-            // 1. Force the join panel to turn off
             if (joinPanel != null) joinPanel.SetActive(false);
-
-            // 2. Turn off the entire Main Menu Canvas to be absolutely safe
             gameObject.SetActive(false);
         }
     }
 
     private void OnClientDisconnected(ulong clientId)
     {
+        StopTimeoutRoutine();
+
         NetworkManager nm = NetworkManager.Singleton;
         string reason = nm != null ? nm.DisconnectReason : string.Empty;
 
         UnsubscribeClientCallbacks();
-        SetStatus(string.IsNullOrEmpty(reason)
-            ? $"Could not connect to host (port {port})."
-            : $"Disconnected: {reason}");
+
+        if (string.IsNullOrEmpty(reason) || reason.Contains("MaxConnectionAttempts"))
+        {
+            SetStatus("Could not connect to host. Check the IP and try again.");
+        }
+        else
+        {
+            SetStatus($"Disconnected: {reason}");
+        }
+
         isBusy = false;
+    }
+
+    private void StopTimeoutRoutine()
+    {
+        if (connectTimeoutRoutine != null)
+        {
+            StopCoroutine(connectTimeoutRoutine);
+            connectTimeoutRoutine = null;
+        }
     }
 
     private void UnsubscribeClientCallbacks()
@@ -218,7 +265,6 @@ public class MainMenuUI : MonoBehaviour
         if (nm.IsListening || nm.ShutdownInProgress)
         {
             nm.Shutdown();
-            // Use the cached reference: Singleton can become null during shutdown.
             yield return new WaitUntil(() => nm == null || (!nm.IsListening && !nm.ShutdownInProgress));
         }
     }
