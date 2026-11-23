@@ -13,14 +13,14 @@ public class ZombieSpawnTrigger : NetworkBehaviour
     [SerializeField] private float delayBeforeNextWave = 1.0f;
 
     [Header("Horde Settings")]
-    [Tooltip("Zombies per wave")]
-    [SerializeField] private int hordeSize = 10;
+    [Tooltip("Total zombies per wave (split evenly between SpawnPoint 1 and SpawnPoint 2, e.g. 15 = 8 and 7)")]
+    [SerializeField] private int hordeSize = 15;
     [Tooltip("Delay between each zombie spawning")]
     [SerializeField] private float spawnInterval = 0.18f;
     [Tooltip("Scatter radius around spawn point so they do not stack")]
     [SerializeField] private float spawnRadius = 2.2f;
 
-    [Header("Alternating Spawn Points")]
+    [Header("Dual Spawn Points")]
     [Tooltip("Assign SpawnPoint 1 and SpawnPoint 2 here")]
     [SerializeField] private Transform spawnPoint1;
     [SerializeField] private Transform spawnPoint2;
@@ -32,8 +32,8 @@ public class ZombieSpawnTrigger : NetworkBehaviour
     private int currentWave = 0;
     private int currentAliveZombies = 0;
     private bool isEncounterActive = false;
+    private bool isEncounterCleared = false;
     private bool isSpawningWave = false;
-    private bool currentSpawnToggle = false; // false = Point 1, true = Point 2
 
     public override void OnNetworkSpawn()
     {
@@ -57,7 +57,7 @@ public class ZombieSpawnTrigger : NetworkBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (!IsServer || isEncounterActive) return;
+        if (!IsServer || isEncounterActive || isEncounterCleared) return;
 
         if (other.CompareTag("Player") || other.GetComponentInParent<PlayerController>() != null)
         {
@@ -69,13 +69,19 @@ public class ZombieSpawnTrigger : NetworkBehaviour
 
     private void HandleZombieDied()
     {
-        if (!isEncounterActive || !IsServer) return;
+        if (!isEncounterActive || isEncounterCleared || !IsServer) return;
 
         currentAliveZombies = Mathf.Max(0, currentAliveZombies - 1);
         Debug.Log($"<color=orange>[Horde]</color> Zombie killed! Active zombies left: {currentAliveZombies}");
 
-        // Check if only 2 zombies remain to trigger the next wave
-        if (!isSpawningWave && currentAliveZombies <= spawnNextWhenRemaining)
+        CheckWaveProgress();
+    }
+
+    private void CheckWaveProgress()
+    {
+        if (isSpawningWave || isEncounterCleared) return;
+
+        if (currentAliveZombies <= spawnNextWhenRemaining)
         {
             if (currentWave < totalWaves)
             {
@@ -84,7 +90,6 @@ public class ZombieSpawnTrigger : NetworkBehaviour
             }
             else if (currentAliveZombies == 0)
             {
-                // All waves and all zombies defeated!
                 OnEncounterCleared();
             }
         }
@@ -95,32 +100,34 @@ public class ZombieSpawnTrigger : NetworkBehaviour
         isSpawningWave = true;
         currentWave++;
 
-        // Brief delay before wave starts
         if (currentWave > 1 && delayBeforeNextWave > 0f)
         {
             yield return new WaitForSeconds(delayBeforeNextWave);
         }
 
-        // Alternates: Wave 1 = Point 1, Wave 2 = Point 2, Wave 3 = Point 1, etc.
-        Transform activeSpawnPoint = currentSpawnToggle ? spawnPoint2 : spawnPoint1;
-        currentSpawnToggle = !currentSpawnToggle; // Toggle for next wave
+        Transform pointA = spawnPoint1 != null ? spawnPoint1 : (spawnPoint2 != null ? spawnPoint2 : transform);
+        Transform pointB = spawnPoint2 != null ? spawnPoint2 : pointA;
 
-        // Fallback if one point is unassigned
-        if (activeSpawnPoint == null) activeSpawnPoint = transform;
-
-        Debug.Log($"<color=green>[Horde]</color> Wave {currentWave}/{totalWaves} spawning at {activeSpawnPoint.name}!");
+        int spawnedAt1 = 0;
+        int spawnedAt2 = 0;
 
         for (int i = 0; i < hordeSize; i++)
         {
-            // Scatter so they don't stack on each other
+            // Alternate each zombie between SpawnPoint 1 and SpawnPoint 2 (e.g., 15 -> 8 and 7)
+            bool usePoint1 = (i % 2 == 0);
+            Transform chosenPoint = usePoint1 ? pointA : pointB;
+
             Vector2 scatter = Random.insideUnitCircle * spawnRadius;
-            Vector3 rawPos = activeSpawnPoint.position + new Vector3(scatter.x, 0f, scatter.y);
+            Vector3 rawPos = chosenPoint.position + new Vector3(scatter.x, 0f, scatter.y);
             Vector3 safeFloorPos = GetFloorPosition(rawPos);
 
             if (ZombiePool.Instance != null)
             {
-                ZombiePool.Instance.SpawnZombie(safeFloorPos, activeSpawnPoint.rotation);
+                ZombiePool.Instance.SpawnZombie(safeFloorPos, chosenPoint.rotation);
                 currentAliveZombies++;
+
+                if (usePoint1) spawnedAt1++;
+                else spawnedAt2++;
             }
 
             if (spawnInterval > 0f)
@@ -129,13 +136,16 @@ public class ZombieSpawnTrigger : NetworkBehaviour
             }
         }
 
+        Debug.Log($"<color=green>[Horde]</color> Wave {currentWave}/{totalWaves} spawned: {spawnedAt1} at {pointA.name}, {spawnedAt2} at {pointB.name}.");
+
         isSpawningWave = false;
+        CheckWaveProgress();
     }
 
     private Vector3 GetFloorPosition(Vector3 origin)
     {
         Vector3 rayStart = origin + Vector3.up * 3f;
-        if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, 10f))
+        if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, 10f, ~0, QueryTriggerInteraction.Ignore))
         {
             return hit.point + Vector3.up * 0.15f;
         }
@@ -145,9 +155,13 @@ public class ZombieSpawnTrigger : NetworkBehaviour
 
     private void OnEncounterCleared()
     {
+        if (isEncounterCleared) return;
+        isEncounterCleared = true;
+        isEncounterActive = false;
+
         Debug.Log("<color=green>[Horde Encounter]</color> ALL WAVES DEFEATED! Encounter Cleared!");
 
-        if (barrierToDestroyOnClear != null)
+        if (barrierToDestroyOnClear != null && barrierToDestroyOnClear.IsSpawned)
         {
             barrierToDestroyOnClear.Despawn(true);
         }

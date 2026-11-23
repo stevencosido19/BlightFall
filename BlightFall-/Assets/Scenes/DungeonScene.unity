@@ -1962,7 +1962,7 @@ Transform:
   m_GameObject: {fileID: 79685931}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -66, y: 0.93, z: 25.84}
+  m_LocalPosition: {x: -66, y: 0.93, z: 24.97}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -2394,7 +2394,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   totalWaves: 4
   spawnNextWhenRemaining: 2
-  delayBeforeNextWave: 1
+  delayBeforeNextWave: 0.5
   hordeSize: 12
   spawnInterval: 0.18
   spawnRadius: 2.2
@@ -2641,7 +2641,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   totalWaves: 4
   spawnNextWhenRemaining: 2
-  delayBeforeNextWave: 1
+  delayBeforeNextWave: 0.5
   hordeSize: 12
   spawnInterval: 0.18
   spawnRadius: 2.2
@@ -4730,7 +4730,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   totalWaves: 4
   spawnNextWhenRemaining: 2
-  delayBeforeNextWave: 10
+  delayBeforeNextWave: 0.5
   hordeSize: 12
   spawnInterval: 0.18
   spawnRadius: 2.2
@@ -9402,7 +9402,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   totalWaves: 4
   spawnNextWhenRemaining: 2
-  delayBeforeNextWave: 1
+  delayBeforeNextWave: 0.5
   hordeSize: 12
   spawnInterval: 0.18
   spawnRadius: 2.2
@@ -10321,7 +10321,7 @@ Transform:
   m_GameObject: {fileID: 1267317197}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -67.79, y: 0.51, z: 70.6}
+  m_LocalPosition: {x: -67.79, y: 0.51, z: 70.03}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -10709,7 +10709,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   totalWaves: 4
   spawnNextWhenRemaining: 2
-  delayBeforeNextWave: 0
+  delayBeforeNextWave: 0.5
   hordeSize: 12
   spawnInterval: 0.18
   spawnRadius: 2.2
@@ -12150,7 +12150,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   totalWaves: 4
   spawnNextWhenRemaining: 2
-  delayBeforeNextWave: 1
+  delayBeforeNextWave: 0.5
   hordeSize: 12
   spawnInterval: 0.18
   spawnRadius: 2.2

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TMPro;
 using Unity.Netcode;
 using UnityEngine;
@@ -13,6 +14,7 @@ public class VictoryUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI statusText;
 
     private string sceneToLoad;
+    private bool isLoadingNextStage = false;
 
     private void Awake()
     {
@@ -28,16 +30,17 @@ public class VictoryUI : MonoBehaviour
     public void ShowVictoryPanel(string nextScene)
     {
         sceneToLoad = nextScene;
+        isLoadingNextStage = false;
 
         if (victoryPanel != null)
             victoryPanel.SetActive(true);
 
         bool isHost = NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer;
 
-        // In multiplayer, only the Host has authority to trigger scene transitions
         if (nextStageButton != null)
         {
             nextStageButton.gameObject.SetActive(isHost);
+            nextStageButton.interactable = true;
         }
 
         if (statusText != null)
@@ -48,11 +51,26 @@ public class VictoryUI : MonoBehaviour
 
     private void OnNextStageClicked()
     {
+        if (isLoadingNextStage) return;
+
         if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
         {
+            isLoadingNextStage = true;
+            if (nextStageButton != null) nextStageButton.interactable = false;
+
+            // Cleanly despawn Stage 1 players BEFORE loading Stage 2
+            List<PlayerHealth> snapshot = new List<PlayerHealth>(PlayerHealth.AllPlayers);
+            PlayerHealth.AllPlayers.Clear();
+            foreach (PlayerHealth p in snapshot)
+            {
+                if (p != null && p.NetworkObject != null && p.NetworkObject.IsSpawned)
+                {
+                    p.NetworkObject.Despawn(true);
+                }
+            }
+
             Debug.Log($"[VictoryUI] Host loading next stage: {sceneToLoad}");
 
-            // Automatically synchronizes and loads the scene for ALL connected players
             NetworkManager.Singleton.SceneManager.LoadScene(
                 sceneToLoad,
                 UnityEngine.SceneManagement.LoadSceneMode.Single

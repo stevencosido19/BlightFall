@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
+[RequireComponent(typeof(NetworkObject))]
 public class ZombiePool : NetworkBehaviour
 {
     public static ZombiePool Instance;
@@ -15,7 +16,9 @@ public class ZombiePool : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        // Set instance on both server and clients
+        base.OnNetworkSpawn();
+
+        // Set instance on both server and clients for THIS scene
         Instance = this;
 
         if (IsServer)
@@ -24,8 +27,22 @@ public class ZombiePool : NetworkBehaviour
         }
     }
 
+    public override void OnNetworkDespawn()
+    {
+        base.OnNetworkDespawn();
+
+        if (Instance == this)
+        {
+            Instance = null;
+        }
+
+        availableZombies.Clear();
+    }
+
     private void InitializePool()
     {
+        availableZombies.Clear();
+
         for (int i = 0; i < initialPoolSize; i++)
         {
             CreateNewZombieForPool();
@@ -36,7 +53,9 @@ public class ZombiePool : NetworkBehaviour
     {
         GameObject obj = Instantiate(zombiePrefab, holdingArea, Quaternion.identity);
         NetworkObject netObj = obj.GetComponent<NetworkObject>();
-        netObj.Spawn(); // Spawns network object
+
+        // destroyWithScene = true ensures Stage 1's pooled zombies clean up when loading Stage 2!
+        netObj.Spawn(true);
 
         SetZombieState(netObj, false, holdingArea);
         availableZombies.Enqueue(netObj);
@@ -47,9 +66,14 @@ public class ZombiePool : NetworkBehaviour
     {
         if (!IsServer) return;
 
+        if (!IsSpawned)
+        {
+            Debug.LogError("[ZombiePool] SpawnZombie failed because ZombiePool is NOT spawned! Make sure Stage 2 has its own ZombiePool with a NetworkObject (and is NOT inside a DontDestroyOnLoad object).");
+            return;
+        }
+
         NetworkObject zombie = null;
 
-        // Find an active pooled object that wasn't destroyed
         while (availableZombies.Count > 0)
         {
             var candidate = availableZombies.Dequeue();
@@ -60,71 +84,59 @@ public class ZombiePool : NetworkBehaviour
             }
         }
 
-        // Expand pool dynamically if we run out
         if (zombie == null)
         {
             zombie = CreateNewZombieForPool();
             availableZombies.Dequeue();
         }
 
-        // 1. Safely position and enable on Server
         SetZombieState(zombie, true, position, rotation);
 
-        // 2. Reset health and clear residual physics velocity
         var ai = zombie.GetComponent<ZombieAI>();
         if (ai != null)
         {
             ai.ResetForSpawn(position);
         }
 
-        // 3. Sync position and activation to all clients
         SyncZombieStateClientRpc(zombie.NetworkObjectId, position, rotation, true);
     }
 
     public void ReturnToPool(NetworkObject zombie)
     {
-        if (!IsServer || zombie == null) return;
+        if (!IsServer || !IsSpawned || zombie == null || !zombie.IsSpawned) return;
 
-        // Move to holding area and disable
         SetZombieState(zombie, false, holdingArea);
-
         SyncZombieStateClientRpc(zombie.NetworkObjectId, holdingArea, Quaternion.identity, false);
 
         availableZombies.Enqueue(zombie);
     }
 
-    // Safely handles CharacterController teleportation so it never falls through the floor
     private void SetZombieState(NetworkObject zombie, bool isActive, Vector3 pos, Quaternion rot = default)
     {
         var cc = zombie.GetComponent<CharacterController>();
 
-        // CRITICAL: Must disable CharacterController before moving transform
         if (cc != null) cc.enabled = false;
 
         zombie.transform.position = pos;
         if (rot != default) zombie.transform.rotation = rot;
 
-        // Toggle standard colliders
         foreach (var col in zombie.GetComponentsInChildren<Collider>())
         {
             if (col is not CharacterController) col.enabled = isActive;
         }
 
-        // Toggle visuals
         foreach (var rend in zombie.GetComponentsInChildren<SpriteRenderer>()) rend.enabled = isActive;
         foreach (var rend in zombie.GetComponentsInChildren<MeshRenderer>()) rend.enabled = isActive;
 
         var ai = zombie.GetComponent<ZombieAI>();
         if (ai != null) ai.enabled = isActive;
 
-        // Re-enable CharacterController only after position is settled
         if (cc != null) cc.enabled = isActive;
     }
 
     [Rpc(SendTo.ClientsAndHost)]
     private void SyncZombieStateClientRpc(ulong networkObjectId, Vector3 pos, Quaternion rot, bool isActive)
     {
-        // Server already handled this locally
         if (IsServer) return;
 
         if (NetworkManager.Singleton != null &&
