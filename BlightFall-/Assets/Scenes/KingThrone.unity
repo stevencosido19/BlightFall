@@ -12926,6 +12926,8 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   zombiePrefab: {fileID: 4566705612971407618, guid: a730953667ac7f54e9b3f8305e58c92f, type: 3}
   initialPoolSize: 15
+  prewarmPerFrame: 1
+  prewarmStartDelay: 0.5
 --- !u!114 &1644818727
 MonoBehaviour:
   m_ObjectHideFlags: 0

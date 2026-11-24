@@ -1081,9 +1081,10 @@ MonoBehaviour:
   knightAnimator: {fileID: 245262193111205447}
   knightSprite: {fileID: 3942727368041500548}
   knightAttackTrigger: Attack
-  knightSlashEffectSprite: {fileID: 0}
+  knightSlashEffectSprite: {fileID: 21300000, guid: 2cb6e00098c798c47abf733d5e4ac41b, type: 3}
   knightSlashScale: {x: 1.5, y: 1.5}
   knightSlashDuration: 0.18
+  knightSlashSfx: {fileID: 8300000, guid: 01e32631113d4f249bd6faf0f8f251a9, type: 3}
   rogueStabDamage: 25
   rogueKnockbackForce: 4
   rogueStabRadius: 1.2
@@ -1096,6 +1097,7 @@ MonoBehaviour:
   rogueStabEffectSprite: {fileID: 0}
   rogueStabScale: {x: 1, y: 1}
   rogueStabDuration: 0.12
+  rogueStabSfx: {fileID: 0}
   arbalistBoltDamage: 30
   arbalistBoltSpeed: 18
   arbalistBoltRange: 14
@@ -1106,9 +1108,13 @@ MonoBehaviour:
   arbalistAttackTrigger: Attack
   arbalistBoltSprite: {fileID: 0}
   arbalistBoltScale: {x: 0.8, y: 0.8}
+  arbalistBoltSfx: {fileID: 0}
   attackSpriteTiltX: 90
   attackSpriteRotationOffset: 0
   attackSortingOrder: 10
+  combatAudioSource: {fileID: 0}
+  attackSfxVolume: 1
+  randomizePitch: 1
 --- !u!114 &-1774898399957192695
 MonoBehaviour:
   m_ObjectHideFlags: 0

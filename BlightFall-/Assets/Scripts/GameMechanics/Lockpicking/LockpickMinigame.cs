@@ -9,12 +9,12 @@ public class LockpickMinigame : MonoBehaviour, IDragHandler
 
     [Header("UI Panels")]
     [SerializeField] private GameObject minigamePanel;
-    [SerializeField] private RectTransform pickPivot;      // Pick needle
-    [SerializeField] private RectTransform lockCylinder;   // Lock cylinder
+    [SerializeField] private RectTransform pickPivot;      
+    [SerializeField] private RectTransform lockCylinder;   
 
     [Header("Mobile Controls")]
-    [SerializeField] private LockTurnButton turnButton;    // The on-screen "HOLD TO TURN" button
-    [SerializeField] private Button closeButton;           // Top corner "X" button
+    [SerializeField] private LockTurnButton turnButton;   
+    [SerializeField] private Button closeButton;           
 
     [Header("Difficulty Settings")]
     [SerializeField] private float sweetSpotTolerance = 12f;
@@ -47,7 +47,7 @@ public class LockpickMinigame : MonoBehaviour, IDragHandler
         currentLockAngle = 0f;
         currentPickAngle = 0f;
 
-        // Generate a random sweet spot between -80 and +80 degrees
+       
         sweetSpotAngle = UnityEngine.Random.Range(-80f, 80f);
 
         UpdateRotations();
@@ -59,7 +59,7 @@ public class LockpickMinigame : MonoBehaviour, IDragHandler
         minigamePanel.SetActive(false);
     }
 
-    // Touch drag handler: swiping finger across the screen rotates the pick
+    
     public void OnDrag(PointerEventData eventData)
     {
         if (isTurning || isUnlocked) return;
@@ -73,11 +73,11 @@ public class LockpickMinigame : MonoBehaviour, IDragHandler
     {
         if (minigamePanel == null || !minigamePanel.activeSelf || isUnlocked) return;
 
-        // Check if the player is holding the mobile "TURN" button (or Space/D in editor)
+        
         isTurning = (turnButton != null && turnButton.IsPressed);
 
 #if UNITY_EDITOR
-        // Keyboard fallback for testing in editor
+       
         if (UnityEngine.InputSystem.Keyboard.current != null &&
             (UnityEngine.InputSystem.Keyboard.current.dKey.isPressed || UnityEngine.InputSystem.Keyboard.current.spaceKey.isPressed))
         {
@@ -85,13 +85,13 @@ public class LockpickMinigame : MonoBehaviour, IDragHandler
         }
 #endif
 
-        // Calculate how far the lock can turn based on accuracy
+        
         float angleDifference = Mathf.Abs(currentPickAngle - sweetSpotAngle);
         float maxTurnAngle;
 
         if (angleDifference <= sweetSpotTolerance)
         {
-            maxTurnAngle = 90f; // Inside sweet spot -> can open!
+            maxTurnAngle = 90f; 
         }
         else
         {
@@ -99,12 +99,12 @@ public class LockpickMinigame : MonoBehaviour, IDragHandler
             maxTurnAngle = Mathf.Lerp(0f, 75f, proximity * proximity);
         }
 
-        // Rotate the cylinder
+        
         if (isTurning)
         {
             currentLockAngle = Mathf.MoveTowards(currentLockAngle, maxTurnAngle, turnSpeed * Time.deltaTime);
 
-            // Shaking if stuck
+           
             if (currentLockAngle >= maxTurnAngle - 0.5f && currentLockAngle < 90f)
             {
                 float shake = UnityEngine.Random.Range(-2.5f, 2.5f);
@@ -113,13 +113,13 @@ public class LockpickMinigame : MonoBehaviour, IDragHandler
         }
         else
         {
-            // Spring back when released
+           
             currentLockAngle = Mathf.MoveTowards(currentLockAngle, 0f, turnSpeed * 1.5f * Time.deltaTime);
         }
 
         UpdateRotations();
 
-        // Success check
+       
         if (currentLockAngle >= 89.9f)
         {
             isUnlocked = true;

@@ -17,6 +17,7 @@ public class PlayerCombat : NetworkBehaviour
     [SerializeField] private Sprite knightSlashEffectSprite;
     [SerializeField] private Vector2 knightSlashScale = new Vector2(1.5f, 1.5f);
     [SerializeField] private float knightSlashDuration = 0.18f;
+    [SerializeField] private AudioClip knightSlashSfx;
 
     [Header("Rogue - Fast Dagger Stab")]
     [SerializeField] private int rogueStabDamage = 25;
@@ -31,6 +32,7 @@ public class PlayerCombat : NetworkBehaviour
     [SerializeField] private Sprite rogueStabEffectSprite;
     [SerializeField] private Vector2 rogueStabScale = new Vector2(1.0f, 1.0f);
     [SerializeField] private float rogueStabDuration = 0.12f;
+    [SerializeField] private AudioClip rogueStabSfx;
 
     [Header("Arbalist - Standard Crossbow Bolt")]
     [SerializeField] private int arbalistBoltDamage = 30;
@@ -43,6 +45,7 @@ public class PlayerCombat : NetworkBehaviour
     [SerializeField] private string arbalistAttackTrigger = "Attack";
     [SerializeField] private Sprite arbalistBoltSprite;
     [SerializeField] private Vector2 arbalistBoltScale = new Vector2(0.8f, 0.8f);
+    [SerializeField] private AudioClip arbalistBoltSfx;
 
     [Header("Attack Sprite Orientation & Sorting")]
     [Tooltip("90 = lies flat on the ground for top-down/2.5D. Lower (e.g. 60) to tilt toward camera.")]
@@ -51,6 +54,14 @@ public class PlayerCombat : NetworkBehaviour
     [SerializeField] private float attackSpriteRotationOffset = 0f;
     [SerializeField] private int attackSortingOrder = 10;
 
+    [Header("Attack Audio (SFX)")]
+    [Tooltip("Optional: auto-created if left empty")]
+    [SerializeField] private AudioSource combatAudioSource;
+    [Range(0f, 1f)]
+    [SerializeField] private float attackSfxVolume = 1f;
+    [Tooltip("Adds slight pitch variation so rapid attacks sound natural")]
+    [SerializeField] private bool randomizePitch = true;
+
     private PlayerController playerController;
     private float lastAttackTime = -99f;
     private Button mobileAttackButton;
@@ -58,6 +69,17 @@ public class PlayerCombat : NetworkBehaviour
     private void Awake()
     {
         playerController = GetComponent<PlayerController>();
+
+        if (combatAudioSource == null)
+        {
+            combatAudioSource = GetComponent<AudioSource>();
+            if (combatAudioSource == null)
+            {
+                combatAudioSource = gameObject.AddComponent<AudioSource>();
+                combatAudioSource.playOnAwake = false;
+                combatAudioSource.spatialBlend = 0f; // Crisp 2D audio by default
+            }
+        }
     }
 
     public override void OnNetworkSpawn()
@@ -242,7 +264,7 @@ public class PlayerCombat : NetworkBehaviour
     }
 
     // ==========================================
-    //          ANIMATION & VISUAL RPCS
+    //          ANIMATION, SFX & VISUAL RPCS
     // ==========================================
     private void PlayCharacterAttackAnimation(Animator anim, SpriteRenderer sprite, string triggerName, Vector3 dir)
     {
@@ -257,10 +279,19 @@ public class PlayerCombat : NetworkBehaviour
         }
     }
 
+    private void PlayAttackSfx(AudioClip clip)
+    {
+        if (clip == null || combatAudioSource == null) return;
+
+        combatAudioSource.pitch = randomizePitch ? Random.Range(0.93f, 1.07f) : 1f;
+        combatAudioSource.PlayOneShot(clip, attackSfxVolume);
+    }
+
     [Rpc(SendTo.ClientsAndHost)]
     public void SpawnKnightSlashVisualClientRpc(Vector3 pos, Vector3 dir)
     {
         PlayCharacterAttackAnimation(knightAnimator, knightSprite, knightAttackTrigger, dir);
+        PlayAttackSfx(knightSlashSfx);
         StartCoroutine(SlashVisualRoutine(pos, dir));
     }
 
@@ -268,6 +299,7 @@ public class PlayerCombat : NetworkBehaviour
     public void SpawnRogueStabVisualClientRpc(Vector3 origin, Vector3 dir)
     {
         PlayCharacterAttackAnimation(rogueAnimator, rogueSprite, rogueAttackTrigger, dir);
+        PlayAttackSfx(rogueStabSfx);
         StartCoroutine(StabVisualRoutine(origin, dir));
     }
 
@@ -275,6 +307,7 @@ public class PlayerCombat : NetworkBehaviour
     public void SpawnBoltVisualClientRpc(Vector3 startPos, Vector3 dir)
     {
         PlayCharacterAttackAnimation(arbalistAnimator, arbalistSprite, arbalistAttackTrigger, dir);
+        PlayAttackSfx(arbalistBoltSfx);
         StartCoroutine(BoltVisualRoutine(startPos, dir));
     }
 
@@ -322,7 +355,6 @@ public class PlayerCombat : NetworkBehaviour
         }
         else
         {
-            // Fallback prototype cube if no sprite assigned
             GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
             visual.name = "SlashArc";
             Destroy(visual.GetComponent<Collider>());

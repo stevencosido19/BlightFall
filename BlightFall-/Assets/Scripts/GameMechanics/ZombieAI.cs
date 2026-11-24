@@ -47,7 +47,7 @@ public class ZombieAI : NetworkBehaviour, IDamageable
         agent = GetComponent<NavMeshAgent>();
         if (agent != null)
         {
-            // Keep 2D sprite upright—do NOT let NavMeshAgent rotate the transform!
+            
             agent.updateRotation = false;
             agent.speed = moveSpeed;
             agent.stoppingDistance = attackRange * 0.75f;
@@ -58,7 +58,7 @@ public class ZombieAI : NetworkBehaviour, IDamageable
     {
         base.OnNetworkSpawn();
 
-        // Only the Server runs NavMeshAgent; clients receive positions from NetworkTransform
+        
         if (!IsServer && agent != null)
         {
             agent.enabled = false;
@@ -183,7 +183,7 @@ public class ZombieAI : NetworkBehaviour, IDamageable
     {
         if (!IsServer || !IsActiveInPool.Value || agent == null || !agent.enabled || !agent.isOnNavMesh) return;
 
-        // 1. Search for closest alive player
+        
         searchTimer -= Time.deltaTime;
         if (searchTimer <= 0f)
         {
@@ -191,7 +191,7 @@ public class ZombieAI : NetworkBehaviour, IDamageable
             searchTimer = 0.4f;
         }
 
-        // 2. Handle Knockback (stays inside NavMesh walls)
+        
         if (knockbackVelocity.sqrMagnitude > 0.1f)
         {
             agent.isStopped = true;
@@ -205,7 +205,7 @@ public class ZombieAI : NetworkBehaviour, IDamageable
             agent.isStopped = false;
         }
 
-        // 3. Pathfind & Attack
+      
         if (targetPlayer != null)
         {
             pathTimer -= Time.deltaTime;
@@ -215,7 +215,7 @@ public class ZombieAI : NetworkBehaviour, IDamageable
                 pathTimer = pathUpdateInterval;
             }
 
-            // Update FacingDirection for Rogue backstab crits & optional sprite flip
+            
             Vector3 moveVel = agent.velocity;
             moveVel.y = 0f;
             if (moveVel.sqrMagnitude > 0.05f)

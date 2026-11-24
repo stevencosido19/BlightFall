@@ -44,7 +44,7 @@ public class MainMenuUI : MonoBehaviour
         UnsubscribeClientCallbacks();
     }
 
-    // ---------------- Navigation ----------------
+   
 
     public void OnPlayButtonClicked()
     {
@@ -67,7 +67,7 @@ public class MainMenuUI : MonoBehaviour
         SetStatus(string.Empty);
     }
 
-    // ---------------- Host ----------------
+  
 
     public void OnHostButtonClicked()
     {
@@ -117,7 +117,7 @@ public class MainMenuUI : MonoBehaviour
         isBusy = false;
     }
 
-    // ---------------- Client ----------------
+ 
 
     public void OnSubmitJoinClicked()
     {
@@ -166,7 +166,7 @@ public class MainMenuUI : MonoBehaviour
         }
 
         transport.SetConnectionData(targetIP, port);
-        // Set higher than our timeout so we cancel cleanly BEFORE UnityTransport throws a red LogError
+        
         transport.MaxConnectAttempts = 10;
         transport.MaxPacketQueueSize = maxPacketQueueSize;
         transport.MaxSendQueueSize = maxSendQueueSize;
@@ -190,7 +190,7 @@ public class MainMenuUI : MonoBehaviour
     {
         yield return new WaitForSecondsRealtime(connectTimeoutSeconds);
 
-        // If still trying to connect after timeout, cancel cleanly without red LogError
+       
         if (!isBusy) yield break;
 
         UnsubscribeClientCallbacks();
@@ -256,7 +256,7 @@ public class MainMenuUI : MonoBehaviour
         nm.OnClientDisconnectCallback -= OnClientDisconnected;
     }
 
-    // ---------------- Helpers ----------------
+    
 
     private static IEnumerator ShutdownIfRunning(NetworkManager nm)
     {

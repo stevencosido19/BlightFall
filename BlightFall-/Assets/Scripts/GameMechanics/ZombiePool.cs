@@ -85,7 +85,7 @@ public class ZombiePool : NetworkBehaviour
 
             if ((i + 1) % Mathf.Max(1, prewarmPerFrame) == 0)
             {
-                yield return null; // Spread network spawns across frames
+                yield return null; 
             }
         }
 

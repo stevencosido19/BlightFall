@@ -11,13 +11,13 @@ public class CustomPlayerSpawner : MonoBehaviour
 
     private void Start()
     {
-        // Subscribe to the event that fires whenever a client connects
+        
         NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
     }
 
     private void OnDestroy()
     {
-        // Unsubscribe to prevent memory leaks
+        
         if (NetworkManager.Singleton != null)
         {
             NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
@@ -26,14 +26,14 @@ public class CustomPlayerSpawner : MonoBehaviour
 
     private void OnClientConnected(ulong clientId)
     {
-        // ONLY the server handles spawning characters
+        
         if (!NetworkManager.Singleton.IsServer) return;
 
-        // Pick a character based on client ID (0, 1, 2)
+       
         int index = (int)clientId % characterPrefabs.Length;
         GameObject selectedPrefab = characterPrefabs[index];
 
-        // Pick a spawn point (so they don't spawn inside each other)
+        
         Vector3 spawnPos = Vector3.zero;
         Quaternion spawnRot = Quaternion.identity;
 
@@ -44,10 +44,10 @@ public class CustomPlayerSpawner : MonoBehaviour
             spawnRot = sp.rotation;
         }
 
-        // 1. Instantiate the GameObject physically into the scene
+        
         GameObject playerInstance = Instantiate(selectedPrefab, spawnPos, spawnRot);
 
-        // 2. Spawn it on the network and assign it to the connecting player!
+        
         playerInstance.GetComponent<NetworkObject>().SpawnAsPlayerObject(clientId);
     }
 }
